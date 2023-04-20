@@ -1,0 +1,54 @@
+---
+title: "20230420_dae"
+author: "Andrew Nam"
+date: "4/20/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+theme_set(theme_bw())
+```
+
+# Data
+
+```{r}
+df_data = read_tsv("df_dae.tsv") %>% 
+  select(imid, label, t, token_1, token_2, everything())
+```
+
+```{r}
+df = df_data %>% 
+  select(imid, label) %>% 
+  distinct() %>% 
+  group_by(label) %>% 
+  sample_n(5) %>% 
+  left_join(df_data)
+
+
+# df %>% 
+#   ggplot(aes(x = pca_1, y = pca_2, color = t, group = imid)) +
+#   geom_line(alpha = .4) +
+#   geom_point(data = df %>% 
+#                group_by(imid) %>% 
+#                filter(t == max(t)),
+#              alpha = .8) +
+#   facet_wrap(~label)
+```
+
+# Token encodings
+
+```{r}
+df_data %>% 
+  filter(t == max(t)) %>% 
+  group_by(label, token_1, token_2) %>% 
+  count() %>% 
+  ggplot(aes(x = token_1, y = token_2, fill = n)) +
+  geom_tile() +
+  facet_wrap(~label)
+```
+

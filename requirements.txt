@@ -1,0 +1,10 @@
+ipython
+jupyterlab
+ipywidgets
+torch
+numpy
+scikit-learn
+matplotlib
+pandas
+tqdm
+einops

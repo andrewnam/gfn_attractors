@@ -1,0 +1,73 @@
+---
+title: "gfn_attractor_1"
+author: "Andrew Nam"
+date: "4/19/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+
+theme_set(theme_bw())
+```
+
+# Load data
+
+```{r}
+df_pca = read_tsv("df_pca.tsv") %>% 
+  select(input_only, imid, label, t, im_input, everything()) %>% 
+  arrange(input_only, imid, t)
+```
+
+
+```{r}
+df = df_pca %>% 
+  filter(t < 4,
+         input_only)
+df %>% 
+  ggplot(aes(x = pca_1, y = pca_2, color = t, group = imid)) +
+  geom_line(alpha = .4) +
+  geom_point(data = df %>% 
+               group_by(imid) %>% 
+               filter(t == max(t)),
+             alpha = .8) +
+  facet_grid(cols = vars(label))
+```
+
+```{r}
+df = df_pca %>% 
+  filter(t %in% c(0, 10, 20, 30, 40, 49))
+df %>% 
+  ggplot(aes(x = pca_1, y = pca_2, color = t, group = imid)) +
+  geom_line(alpha = .4) +
+  geom_point(data = df %>% 
+               group_by(imid) %>% 
+               filter(t == max(t)),
+             alpha = .8) +
+  facet_grid(rows = vars(input_only), cols = vars(label))
+```
+
+```{r}
+df %>% 
+  ggplot(aes(x = pca_1, y = pca_3, color = t, group = imid)) +
+  geom_line(alpha = .4) +
+  geom_point(data = df %>% 
+               group_by(imid) %>% 
+               filter(t == max(t))) +
+  facet_grid(rows = vars(input_only), cols = vars(label))
+```
+
+```{r}
+df %>% 
+  ggplot(aes(x = pca_1, y = pca_4, color = t, group = imid)) +
+  geom_line(alpha = .4) +
+  geom_point(data = df %>% 
+               group_by(imid) %>% 
+               filter(t == max(t))) +
+  facet_grid(rows = vars(input_only), cols = vars(label))
+```
+
