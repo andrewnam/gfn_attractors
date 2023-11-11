@@ -1,7 +1,7 @@
+torch==2.0.1
 ipython
 jupyterlab
 ipywidgets
-torch
 torchvision
 numpy
 scikit-learn

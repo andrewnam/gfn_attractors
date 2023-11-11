@@ -1,0 +1,2 @@
+from .mixture_of_gaussians import MixtureOfGaussiansDataModule, GridOfGaussiansDataModule
+from .image_datamodule import ImageDataModule
