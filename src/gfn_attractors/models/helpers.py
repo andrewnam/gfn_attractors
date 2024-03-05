@@ -3,6 +3,7 @@ from torch import nn, Tensor
 import einops
 import math
 
+
 from ..misc import torch_utils as tu
 
 
@@ -37,6 +38,10 @@ class MLP(nn.Module):
             dim_i = dim_ip1
             dim_ip1 = output_dim if i == n_layers - 2 else hidden_dim
         self.layers = nn.Sequential(*layers)
+
+    @property
+    def device(self):
+        return self.layers[0].weight.device
 
     def forward(self, x: Tensor) -> Tensor:
         y = self.layers(x)

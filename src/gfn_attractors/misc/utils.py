@@ -1,6 +1,7 @@
 import sys
 import inspect
 from collections.abc import Iterable
+import itertools
 import numpy as np
 
 
@@ -85,3 +86,46 @@ def cycle(iterator, n):
             i += 1
             if i >= n:
                 return
+
+
+def batched(iterable, n):
+    # batched('ABCDEFG', 3) --> ABC DEF G
+    # Added to itertools in Python 3.12
+    if n < 1:
+        raise ValueError('n must be at least one')
+    it = iter(iterable)
+    while batch := tuple(itertools.islice(it, n)):
+        yield batch
+
+
+def chunk(lst, n):
+    """
+    Splits the list into n chunks of approximately equal size
+    """
+    if n < 1:
+        raise ValueError('n must be at least one')
+    k = len(lst) // n
+    m = len(lst) % n
+    return (lst[i*k + min(i, m):(i+1)*k + min(i+1, m)] for i in range(n))
+
+
+def get_partition_sizes(n, k):
+    """
+    Splits n into k approximately equal integers
+    >>> get_partition_sizes(11, 3)
+    [4, 4, 3]
+    """
+    # Calculate the approximate size of each integer
+    size = n // k
+    
+    # Calculate the remaining difference
+    remaining = n - (size * k)
+    
+    # Generate the list of integers
+    integers = [size] * k
+    
+    # Distribute the remaining difference evenly among the integers
+    for i in range(remaining):
+        integers[i] += 1
+    
+    return integers

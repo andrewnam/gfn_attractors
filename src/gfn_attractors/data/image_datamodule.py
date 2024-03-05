@@ -40,28 +40,23 @@ class ImageDataModule(pl.LightningDataModule):
 
     def setup(self, stage=None):
         pass
-
-    def get_dataloader_item(self, index):
-        item = {'image': self.images[index],
-                'index': index}
-        return item
     
     def full_dataloader(self, batch_size=None) -> DataLoader:
         dp = SequenceWrapper(torch.arange(len(self.images)))
-        dp = dp.map(lambda i: self.get_dataloader_item(i))
+        dp = dp.map(lambda i: self[i])
         batch_size = self.batch_size if batch_size is None else batch_size
         return DataLoader(dp, batch_size=batch_size, shuffle=True)
         
     def train_dataloader(self, batch_size=None) -> DataLoader:
         dp = SequenceWrapper(self.train_indices)
-        dp = dp.map(lambda i: self.get_dataloader_item(i))
+        dp = dp.map(lambda i: self[i])
         batch_size = self.batch_size if batch_size is None else batch_size
         return DataLoader(dp, batch_size=batch_size, shuffle=True)
     
     def val_dataloader(self, batch_size=None):
         if self.valid_indices is not None:
             dp = SequenceWrapper(self.valid_indices)
-            dp = dp.map(lambda i: self.get_dataloader_item(i))
+            dp = dp.map(lambda i: self[i])
             batch_size = self.batch_size if batch_size is None else batch_size
             return DataLoader(dp, batch_size=batch_size, shuffle=True)
         raise Exception('No validation set')
@@ -69,7 +64,7 @@ class ImageDataModule(pl.LightningDataModule):
     def test_dataloader(self, batch_size=None):
         if self.test_indices is not None:
             dp = SequenceWrapper(self.test_indices)
-            dp = dp.map(lambda i: self.get_dataloader_item(i))
+            dp = dp.map(lambda i: self[i])
             batch_size = self.batch_size if batch_size is None else batch_size
             return DataLoader(dp, batch_size=batch_size, shuffle=True)
         raise Exception('No test set')
@@ -99,3 +94,8 @@ class ImageDataModule(pl.LightningDataModule):
     
     def __len__(self):
         return len(self.images)
+    
+    def __getitem__(self, index):
+        item = {'image': self.images[index],
+                'index': index}
+        return item
