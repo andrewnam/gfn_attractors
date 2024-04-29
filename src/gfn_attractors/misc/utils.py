@@ -3,6 +3,7 @@ import inspect
 from collections.abc import Iterable
 import itertools
 import numpy as np
+import pandas as pd
 
 
 _use_torch = 'torch' in sys.modules
@@ -67,6 +68,30 @@ def filter_kwargs(fn, kwargs):
     Filters out kwargs that are not in the signature of fn
     """
     return {k: v for k, v in kwargs.items() if k in inspect.signature(fn).parameters}
+
+
+def to_long_df(array, dim_names, value_name='value', **kwargs):
+    """
+    Given a multi-dimensional array or tensor, returns a long-form DataFrame with the dimensions as columns.
+    Can also specify additional columns with the kwargs, as long as they have the same shape as the first k dimensions of array,
+    where k is the number of dimensions in the kwarg value..
+    """
+    if isinstance(array, torch.Tensor):
+        array = array.detach().cpu().numpy()
+    shape = array.shape
+    array = array.flatten()
+    index = pd.MultiIndex.from_product([range(i) for i in shape], names=dim_names)
+    df = pd.DataFrame(array, columns=[value_name], index=index).reset_index()
+    for k, v in kwargs.items():
+        i = len(v.shape)
+        v = v.flatten()
+        while len(v) < len(df):
+            if isinstance(v, torch.Tensor):
+                v = v.detach().cpu().numpy()
+            v = np.repeat(v, shape[i])
+            i += 1
+        df[k] = v
+    return df
 
 
 def cycle(iterator, n):

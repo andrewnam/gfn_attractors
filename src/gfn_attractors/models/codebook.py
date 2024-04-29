@@ -31,6 +31,10 @@ class Codebook(nn.Module):
 
         self.entries = nn.Parameter(torch.randn(num_codebooks, num_entries, self.dim_entries))
 
+    @property
+    def device(self):
+        return self.entries.device
+
     def forward(self, x, sample=False, use_ag_scale_probs=False, return_losses=False, quantize=True):
         """
         x: (batch, num_codebooks, dim)

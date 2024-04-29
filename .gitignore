@@ -3,3 +3,7 @@
 notebooks/.ipynb_checkpoints/
 **/wandb/
 **/__pycache__/
+**/temp/
+**/checkpoints/
+**/.ipynb_checkpoints/
+.vscode/

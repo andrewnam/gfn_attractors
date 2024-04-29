@@ -1,0 +1,93 @@
+# Data
+data_depth: 6
+data_repeat: 2
+data_sample_ancestors: True
+data_min_test_depth: 3
+data_batch_size: 256
+
+# Shared
+dim_z: 8
+vocab_size: 12
+max_w_length: 6
+vocab_group_size: 2
+
+save_prefix: 'dynamics' # Prefix for the saved model files.
+save_checkpoint_every: 5000 # How often to save checkpoints (in number of updates)
+create_plots_every: 1000 # How often to create plots (in number of updates)
+
+# Reward
+score_weight: 1
+decodability_weight: 1
+length_penalty: 0
+min_log_reward: -50
+
+# Discretizer
+discretizer_objective: 'subtb' # 'tb', 'subtb', 'db'
+discretizer_dim_h: 1024
+discretizer_num_layers: 3
+
+# Flow models
+flow_dim_h: 1024
+flow_num_layers: 3
+
+# M-Model
+m_model_dim_h: 256
+m_model_num_layers: 3
+m_model_num_w_embedding_layers: 1
+m_model_vae_beta: 1
+m_model_cvae_beta: 1
+
+# Training
+lr_discretizer: 0.0001
+lr_flows: 0.0001
+lr_m_step: 0.0001
+p_explore_discretizer: .1
+
+
+# Replay buffer
+replay_buffer_size: 100000
+buffer_update_interval: 50
+dynamics_batch_size: 1024
+discretizer_batch_size: 1024
+replay_buffer_inv_freq_sequence: true
+replay_buffer_inv_freq_token: true
+
+# Dynamics model
+directional_dynamics: true
+langevin_dynamics: false
+z0_dependent_forward: false
+z0_dependent_backward: true
+t_dependent_forward: false
+t_dependent_backward: true
+z0_dependent_discretizer: true
+attractor_sd: 0.05
+dynamics_dim_h: 512
+dynamics_num_layers: 3
+max_mean: 0.25
+max_sd: .2
+min_sd: 0.001
+num_steps: 20
+num_extra_steps: 0
+# p_sample_x_discretizer: .25
+# p_sleep_phase: 0
+p_sample_x_discretizer: 0
+p_sleep_phase: 0.1
+p_exploration_path: 0.3
+# p_exploration_path: 0.25
+# f_exploration_path: 0.0
+p_explore_exploration_path: .3
+lr_dynamics: .0001
+
+# EM
+start_e_steps: 0 # number of e-steps to start with, ignoring all other conditions
+min_e_steps: 100 # number of e-steps to perform before checking loss-based conditions
+max_e_steps: 100 # If number of e-steps exceeds this, switch to M-step regardless of loss-based conditions.
+num_m_steps: 0
+m_step_temperature: 1 # temperature for sampling P(w|z) during M-step
+m_step_argmax: true # if True, uses argmax instead of sampling P(w|z) during M-step
+m_step_p_explore: 0 # probability of exploring during M-step
+m_step_substrings: true
+m_step_max_w_length: false
+e_step_min_unique_w: 120
+e_step_max_distance: 1000
+

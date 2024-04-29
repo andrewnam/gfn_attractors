@@ -4,9 +4,25 @@ from torch.distributions import Normal, Bernoulli
 from torch.utils.data import RandomSampler, WeightedRandomSampler
 import torch.nn.functional as F
 import einops
+import pandas as pd
 import numpy as np
+from torch.utils.data.dataset import IterableDataset
 
 from .utils import extract_args
+
+
+class DummyDataset(IterableDataset):
+    
+    def __init__(self, size, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.size = size
+    
+    def __len__(self):
+        return self.size
+    
+    def __iter__(self):
+        for i in range(self.size):
+            yield 0
 
 
 class RandomSampler2(RandomSampler):
@@ -124,13 +140,17 @@ def correct_trajectory(z_traj, z_hat, beta=1.0):
 
     # Create a scaling factor tensor that varies along the time dimension
     # Linear or exponential scaling can be used depending on the requirement
-    time_scale = torch.arange(num_steps, dtype=torch.float32, device=z_traj.device) / (num_steps - 1)
-    scaling_factors = time_scale * np.exp(-beta) + torch.exp(beta * time_scale) - 1
+    if isinstance(z_traj, torch.Tensor):
+        time_scale = torch.arange(num_steps, dtype=torch.float32, device=z_traj.device) / (num_steps - 1)
+        scaling_factors = time_scale * np.exp(-beta) + torch.exp(beta * time_scale) - 1
+    else: # numpy
+        time_scale = np.arange(num_steps, dtype=np.float32) / (num_steps - 1)
+        scaling_factors = time_scale * np.exp(-beta) + np.exp(beta * time_scale) - 1
     scaling_factors = scaling_factors / scaling_factors[-1]
     scaling_factors = scaling_factors.view(1, -1, 1)
 
     # Apply the correction
-    corrected_traj = z_traj + scaling_factors * correction_vectors.unsqueeze(1)
+    corrected_traj = z_traj + scaling_factors * correction_vectors.reshape(-1, 1, z_traj.shape[-1])
     return corrected_traj
 
 def sample_brownian_bridge(num_samples, num_steps, a=0, b=0, sd=1):
@@ -208,3 +228,39 @@ def nCk(n, k, log=False):
     if log:
         return log_nck
     return log_nck.exp()
+
+
+def to_long_df(array, dim_names, value_name: str|list = 'value', **kwargs):
+    """
+    If value_name is a list, then the length of the list must be the same as the last dimension in array.
+    """
+    if isinstance(array, torch.Tensor):
+        array = array.detach().cpu().numpy()
+    shape = array.shape
+    if isinstance(value_name, str):
+        array = array.flatten()
+        index = pd.MultiIndex.from_product([range(i) for i in shape], names=dim_names)
+        df = pd.DataFrame(array, columns=[value_name], index=index).reset_index()
+    else:
+        array = array.reshape(-1, len(value_name))
+        index = pd.MultiIndex.from_product([range(i) for i in shape[:-1]], names=dim_names)
+        df = pd.DataFrame(array, columns=value_name, index=index).reset_index()
+    for k, v in kwargs.items():
+        i = len(v.shape)
+        v = v.flatten()
+        if isinstance(v, torch.Tensor):
+            v = v.detach().cpu().numpy()
+        while len(v) < len(df):
+            v = np.repeat(v, shape[i])
+            i += 1
+        df[k] = v
+    return df
+
+
+def unique(x, dim=0):
+    unique, inverse, counts = torch.unique(x, dim=dim, 
+        sorted=True, return_inverse=True, return_counts=True)
+    inv_sorted = inverse.argsort(stable=True)
+    tot_counts = torch.cat((counts.new_zeros(1), counts.cumsum(dim=0)))[:-1]
+    index = inv_sorted[tot_counts]
+    return unique, inverse, counts, index

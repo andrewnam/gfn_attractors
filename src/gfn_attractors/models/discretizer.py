@@ -151,6 +151,26 @@ class BoWDiscretizeModule(nn.Module):
     @property
     def characters(self):
         return string.ascii_letters
+
+    @property
+    def num_groups(self):
+        return self.vocab_size // self.group_size
+    
+    def generate_all_w(self, min_length=1, max_length=None, device='cpu'):
+        if self.group_size is None:
+            if max_length is None:
+                max_length = self.vocab_size
+            all_w = []
+            for length in range(min_length, 1+max_length):
+                w = torch.tensor(list(itertools.combinations(range(self.vocab_size), length)))
+                all_w.append(F.one_hot(w).sum(1))
+            all_w = torch.cat(all_w, dim=0)
+            return all_w.float().to(device)
+        else:
+            all_w = itertools.product(*([range(1+self.group_size)]*self.num_groups))
+        all_w = torch.tensor(list(all_w))
+        all_w = F.one_hot(all_w)[...,1:].flatten(-2, -1).float()
+        return all_w
     
     def to_token_sequence(self, w):
         """
@@ -178,14 +198,6 @@ class BoWDiscretizeModule(nn.Module):
         """
         w = w.tolist()
         return [sep.join([self.characters[i] for i, x in enumerate(row) if x]) for row in w]
-    
-    # def sample_from_prior(self, n, length, dtype=bool, seed=None, device='cpu'):
-    #     rng = np.random.default_rng(seed)
-    #     tokens = np.arange(self.vocab_size)
-    #     indices = np.array([rng.choice(tokens, size=length, replace=False) for _ in range(n)])
-    #     x = np.zeros((n, self.vocab_size), dtype=bool)
-    #     x[np.arange(n)[:, None], indices] = True
-    #     return torch.tensor(x, dtype=dtype, device=device)
 
     def sample_from_prior(self, n, length, dtype=bool, seed=None, device='cpu'):
         rng = np.random.default_rng(seed)
@@ -198,8 +210,8 @@ class BoWDiscretizeModule(nn.Module):
             tokens = F.one_hot(tokens, self.vocab_size).to(dtype=dtype).sum(1)
             return tokens
         else:
-            indices = np.array([rng.choice(tokens, size=length, replace=False) for _ in range(n)])
             tokens = np.arange(self.vocab_size)
+            indices = np.array([rng.choice(tokens, size=length, replace=False) for _ in range(n)])
             x = np.zeros((n, self.vocab_size), dtype=bool)
             x[np.arange(n)[:, None], indices] = True
             return torch.tensor(x, dtype=dtype, device=device)
@@ -295,45 +307,6 @@ class Discretizer(DiscretizeModule):
         metrics = {'dvae/recon_loss': recon_loss, 'dvae/kl_loss': kl_loss, 'dvae/accuracy': accuracy, 'dvae/sigma': self.sigma}
         return loss, metrics
     
-    # def sample(self, x, temperature=1, p_explore=0, argmax=False, target=None):
-    #     """
-    #     x: tensor with shape [batch_size, ...]
-    #     returns:
-    #         w_seq: tensor with shape [batch_size, max_length+1]
-    #         logp_w: tensor with shape [batch_size]
-    #     """
-    #     batch_size = x.shape[0]
-    #     w_seq = torch.zeros(batch_size, 1+self.max_length, dtype=torch.long, device=self.device)
-    #     logp_w = torch.zeros(batch_size, device=self.device)
-    #     cache = {}
-    #     done = torch.zeros(batch_size, dtype=torch.bool, device=self.device)
-    #     w_embeddings = einops.repeat(self.sos, 'h -> b 1 h', b=batch_size)
-    #     for i in range(self.max_length):
-    #         logits, cache = self.get_wi_logits(x[~done], w_embeddings, i, _cache=cache)
-    #         logits = logits / temperature
-    #         logits[:,0] = -1e8 # pad
-    #         log_probs = logits.log_softmax(-1)
-    #         if target is not None:
-    #             w = target[:,i]
-    #         elif argmax:
-    #             w = log_probs.argmax(-1)
-    #         else:
-    #             sample_probs = (1-p_explore) * log_probs.exp() + p_explore / (1 + self.vocab_size)
-    #             sample_probs[:,0] = 0 # pad
-    #             w = Categorical(sample_probs).sample()
-        
-    #         logp = log_probs.gather(-1, w.unsqueeze(-1)).squeeze(-1)
-    #         logp_w[~done] += logp
-    #         w_seq[~done, i] = w
-    #         terminate = (w == self.eos)
-    #         done[~done] = done[~done] | terminate
-    #         w_embeddings = torch.cat([w_embeddings[~terminate], self.embedding(w[~terminate]).unsqueeze(1)], dim=1)
-    #         cache = {k: v[~terminate] if isinstance(v, torch.Tensor) else v for k, v in cache.items()}
-    #         if done.all():
-    #             break
-    #     w_seq[~done, self.max_length] = self.eos
-    #     return w_seq, logp_w
-
     def sample(self, x, min_length=1, max_length=None, temperature=1, p_explore=0, argmax=False, target=None):
         """
         x: tensor with shape [batch_size, ...]
@@ -378,52 +351,6 @@ class Discretizer(DiscretizeModule):
                 break
         w_seq[~done, max_length] = self.eos
         return w_seq, logp_w
-    
-    # def sample_terminate_every_step(self, x, temperature=1, p_explore=0):
-    #     """
-    #     Used for training with terminate at every step.
-
-    #     x: image tensor with shape [batch_size, ...]
-    #     returns:
-    #         w: tensor with shape [batch_size, max_length+1, max_length+1]
-    #         logpf: tensor with shape [batch_size, max_length+1]
-    #         logpt: tensor with shape [batch_size, max_length+1]
-    #     """
-    #     batch_size = x.shape[0]
-
-    #     w_seq = torch.zeros(batch_size, 1+self.max_length, dtype=torch.long, device=self.device)
-    #     logpf = torch.zeros(batch_size, 1+self.max_length, device=self.device)
-    #     logpt = torch.zeros(batch_size, 1+self.max_length, device=self.device)
-    #     cache = {}
-    #     done = torch.zeros(batch_size, dtype=torch.bool, device=self.device)
-    #     w_embeddings = einops.repeat(self.sos, 'h -> b 1 h', b=batch_size)
-    #     for i in range(self.max_length):
-    #         logits, cache = self.get_wi_logits(x[~done], w_embeddings, i, _cache=cache)
-    #         logits = logits / temperature
-    #         logits[:,0] = -1e8 # pad
-    #         log_probs = logits.log_softmax(-1)
-
-    #         sample_probs = (1-p_explore) * log_probs.exp() + p_explore / (1 + self.vocab_size)
-    #         sample_probs[:,:2] = 0 # pad and eos
-    #         w = Categorical(sample_probs).sample()
-    
-    #         logpw = log_probs.gather(-1, w.unsqueeze(-1)).squeeze(-1)
-    #         logpf[~done, i] += logpw
-    #         logpt[~done, i] += log_probs[:,self.eos]
-    #         w_seq[~done, i] = w
-    #         terminate = (w == self.eos)
-    #         done[~done] = done[~done] | terminate
-    #         w_embeddings = torch.cat([w_embeddings[~terminate], self.embedding(w[~terminate]).unsqueeze(1)], dim=1)
-    #         cache = {k: v[~terminate] if isinstance(v, torch.Tensor) else v for k, v in cache.items()}
-    #         if done.all():
-    #             break
-    #     w_seq[~done, self.max_length] = self.eos
-
-    #     w = torch.zeros(w_seq.shape[0], w_seq.shape[1], w_seq.shape[1], dtype=int, device=w_seq.device)
-    #     w[:, range(w_seq.shape[1]), range(w_seq.shape[1])] = 1
-    #     for i in range(1, w_seq.shape[1]):
-    #         w[:, i, :i] = w_seq[:, :i]
-    #     return w, logpf, logpt
     
     def sample_terminate_every_step(self, x, min_length=1, max_length=None, temperature=1, p_explore=0):
         """
@@ -635,53 +562,6 @@ class SimpleTransformerDiscretizer(Discretizer):
         w = w.transpose(0, 1).contiguous().squeeze(1)
         logp = logp.transpose(0, 1).contiguous().squeeze(1)
         return w, logp
-    
-
-# class SimpleTransformerDiscretizer(Discretizer):
-#     """
-#     Transformer-based discretizer that takes in a sequence of vectors and outputs a sequence of tokens.
-#     The output length is fixed and the tokens are sampled simultaneously (no dependence on previous tokens).
-#     """
-
-#     def __init__(self, vocab_size: int, length: int, dim_input: int,
-#                  num_layers=2, dim_feedforward=512, num_heads=8, dropout=0.,
-#                  characters=string.ascii_letters, **kwargs):
-#         super().__init__(vocab_size=vocab_size, max_length=length, dim_h=dim_input, characters=characters)
-#         self.dim_input = dim_input
-#         self.length = length
-
-#         self.positional_embedding = nn.Parameter(torch.randn(length, dim_input))
-#         layers = nn.TransformerDecoderLayer(dim_input, nhead=num_heads, dim_feedforward=dim_feedforward,
-#                                             norm_first=True, dropout=dropout)
-#         self.transformer = nn.TransformerDecoder(layers, num_layers=num_layers)
-#         self.token_decoder = nn.Linear(dim_input, self.vocab_size)
-
-#     def sample(self, h, n=1, temperature=1, p_explore=0, argmax=False, target=None):
-#         """
-#         h: [batch_size, dim_input] or [batch_size, k, dim_input]
-#         returns
-#             w: [batch_size, 1+length]
-#             logp: [batch_size]
-#         """
-#         if h.ndim == 2:
-#             h = h.unsqueeze(1)
-#         batch_size = h.shape[0]
-
-#         queries = einops.repeat(self.positional_embedding, 'l h -> b l h', b=batch_size)
-#         h = self.transformer(queries, h)
-#         logits = self.token_decoder(h) / temperature
-#         if target is not None:
-#             w = target[:,:-1] - 2 # drop EOS and drop indices by 2
-#         elif argmax:
-#             w = logits.argmax(-1)
-#         else:
-#             probs = (1-p_explore) * logits.softmax(-1) + p_explore / self.vocab_size
-#             w = Categorical(probs).sample(n).squeeze(1)
-        
-#         logp = Categorical(logits=logits).log_prob(w).sum(-1)
-#         w = F.pad(2 + w, (0, 1), value=self.eos)
-#         return w, logp
-    
     
 
 def sample_w(p_length, vocab_size, n):
